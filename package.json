@@ -1,15 +1,6 @@
-{
-  "name": "openrouter-mcp-server",
-  "version": "1.0.0",
-  "description": "OpenRouter MCP Server for Cloud Connectors",
-  "main": "index.js",
-  "type": "module",
-  "scripts": {
-    "start": "node index.js"
-  },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^0.6.0",
     "dotenv": "^16.4.5",
+    "express": "^4.19.2",
     "node-fetch": "^3.3.2"
   }
-}

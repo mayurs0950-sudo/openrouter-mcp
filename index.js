@@ -1,22 +1,18 @@
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
-import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
 import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import dotenv from "dotenv";
 import fetch from "node-fetch";
+import express from "express";
 
 dotenv.config();
 
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
 
-if (!OPENROUTER_API_KEY) {
-  console.error("Error: OPENROUTER_API_KEY is missing in .env file.");
-  process.exit(1);
-}
-
-// MCP सर्व्हर इनिशियलाइज करा
+const app = express();
 const server = new Server(
   {
     name: "openrouter-mcp-server",
@@ -29,7 +25,6 @@ const server = new Server(
   }
 );
 
-// उपलब्ध टूल्सची यादी (OpenRouter वरील चॅट / कम्प्लिटेशन टूल)
 server.setRequestHandler(ListToolsRequestSchema, async () => {
   return {
     tools: [
@@ -45,7 +40,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             },
             model: {
               type: "string",
-              description: "The OpenRouter model ID (e.g., 'anthropic/claude-3.5-sonnet', 'openai/gpt-4o'). Default is Claude 3.5 Sonnet.",
+              description: "The OpenRouter model ID.",
               default: "anthropic/claude-3.5-sonnet",
             },
           },
@@ -56,7 +51,6 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
   };
 });
 
-// टूल एक्झिक्युट करण्यासाठी लॉजिक
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
   if (request.params.name === "openrouter_chat") {
     const { prompt, model = "anthropic/claude-3.5-sonnet" } = request.params.arguments;
@@ -67,7 +61,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         headers: {
           "Authorization": `Bearer ${OPENROUTER_API_KEY}`,
           "Content-Type": "application/json",
-          "HTTP-Referer": "https://github.com/mcp-openrouter", // पर्यायी (OpenRouter rankings साठी)
+          "HTTP-Referer": "https://github.com/mcp-openrouter",
           "X-Title": "MCP OpenRouter Server",
         },
         body: JSON.stringify({
@@ -77,45 +71,30 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       });
 
       const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error?.message || "Failed to fetch from OpenRouter");
-      }
-
       const answer = data.choices[0]?.message?.content || "No response received.";
 
-      return {
-        content: [
-          {
-            type: "text",
-            text: answer,
-          },
-        ],
-      };
+      return { content: [{ type: "text", text: answer }] };
     } catch (error) {
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Error calling OpenRouter: ${error.message}`,
-          },
-        ],
-        isError: true,
-      };
+      return { content: [{ type: "text", text: `Error: ${error.message}` }], isError: true };
     }
   }
-
-  throw new Error(`Tool not found: ${request.params.name}`);
+  throw new Error(`Tool not found`);
 });
 
-// STDIO द्वारे सर्व्हर सुरू करा (Cloud Connectors किंवा Claude Desktop साठी आवश्यक)
-async function main() {
-  const transport = new StdioServerTransport();
-  await server.connect(transport);
-  console.error("OpenRouter MCP Server running on stdio");
-}
+let transport;
 
-main().catch((error) => {
-  console.error("Server error:", error);
-  process.exit(1);
+app.get("/sse", async (req, res) => {
+  transport = new SSEServerTransport("/messages", res);
+  await server.connect(transport);
+});
+
+app.post("/messages", async (req, res) => {
+  if (transport) {
+    await transport.handlePostMessage(req, res);
+  }
+});
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`MCP Server running on port ${PORT}`);
 });
