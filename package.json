@@ -1,6 +1,17 @@
+{
+  "name": "openrouter-mcp",
+  "version": "1.0.0",
+  "description": "OpenRouter MCP Server for Claude",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node index.js"
+  },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^0.6.0",
+    "@modelcontextprotocol/sdk": "0.6.0",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
     "node-fetch": "^3.3.2"
   }
+}
+
